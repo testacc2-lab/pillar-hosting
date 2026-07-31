@@ -74,22 +74,28 @@ function switchTab(tab) {
   const loginTab  = document.getElementById('tabLogin');
   const signupTab = document.getElementById('tabSignup');
   const formLogin = document.getElementById('formLogin');
-  const formSignup= document.getElementById('formSignup');
+  const formSignup = document.getElementById('formSignup');
+  const switchLink = document.getElementById('switchLink');
+  const heading = document.getElementById('authHeading');
 
   hideBanners();
 
   if (tab === 'login') {
-    loginTab.classList.add('active');
-    signupTab.classList.remove('active');
-    indicator.classList.remove('right');
+    loginTab?.classList.add('active');
+    signupTab?.classList.remove('active');
+    indicator?.classList.remove('right');
     formLogin.style.display  = 'flex';
     formSignup.style.display = 'none';
+    if (switchLink) switchLink.textContent = 'Create a new account';
+    if (heading) heading.textContent = 'Log In';
   } else {
-    signupTab.classList.add('active');
-    loginTab.classList.remove('active');
-    indicator.classList.add('right');
+    signupTab?.classList.add('active');
+    loginTab?.classList.remove('active');
+    indicator?.classList.add('right');
     formSignup.style.display = 'flex';
     formLogin.style.display  = 'none';
+    if (switchLink) switchLink.textContent = 'Back to login';
+    if (heading) heading.textContent = 'Create Account';
   }
 }
 
@@ -115,11 +121,11 @@ function hideBanners() {
 function togglePass(id, btn) {
   const input = document.getElementById(id);
   input.type  = input.type === 'password' ? 'text' : 'password';
-  btn.style.opacity = input.type === 'text' ? '1' : '0.5';
+  if (btn) btn.textContent = input.type === 'text' ? 'Hide' : 'Show';
 }
 
 /* ── PASSWORD STRENGTH ───────────────────────────────────────────────────── */
-document.getElementById('signupPassword').addEventListener('input', function() {
+document.getElementById('signupPassword')?.addEventListener('input', function() {
   const val   = this.value;
   const fill  = document.getElementById('strengthFill');
   const label = document.getElementById('strengthLabel');
@@ -142,6 +148,16 @@ document.getElementById('signupPassword').addEventListener('input', function() {
   fill.style.background = lvl.bg;
   label.textContent     = lvl.txt;
   label.style.color     = lvl.bg;
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  const switchLink = document.getElementById('switchLink');
+  switchLink?.addEventListener('click', (e) => {
+    e.preventDefault();
+    const isLoginVisible = document.getElementById('formLogin').style.display !== 'none';
+    switchTab(isLoginVisible ? 'signup' : 'login');
+  });
+  switchTab('login');
 });
 
 /* ── SUBMIT HANDLERS ─────────────────────────────────────────────────────── */

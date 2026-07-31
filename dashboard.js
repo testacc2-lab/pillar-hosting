@@ -14,10 +14,32 @@ const BACKUPS_KEY  = 'pella_backups_'  + currentUser.id;
 const NOTIFS_KEY   = 'pella_notifs_'   + currentUser.id;
 
 let currentPage    = 'overview';
-let selectedDeployType   = 'Express.js';
+let selectedDeployType   = 'Flask';
+let selectedDeployCategory = 'webapp';
 let selectedDeployMethod = 'github';
 let activeManagedProjectId = null;
 let activeManageTab = 'console';
+
+const DEPLOY_CATEGORY_TYPES = {
+  webapp: ['Flask', 'Django', 'FastAPI', 'Express', 'Koa'],
+  discord: ['Python', 'NodeJS', 'Bun', 'Java']
+};
+
+const TYPE_EMOJIS = {
+  'Web App': '🌐',
+  'Discord Bot': '🤖',
+  'Express': '🚂',
+  'Express.js': '🚂',
+  'FastAPI': '⚡',
+  'Flask': '🧪',
+  'Django': '🎸',
+  'Koa': '🥝',
+  'Python': '🐍',
+  'NodeJS': '🟢',
+  'Node.js': '🟢',
+  'Bun': '🍞',
+  'Java': '☕'
+};
 
 // ── STORAGE HELPERS ───────────────────────────────────────────────────────
 function getProjects() { return JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]'); }
@@ -53,7 +75,24 @@ document.addEventListener('DOMContentLoaded', () => {
   renderNotifBadge();
   startResourceSimulator();
   startRequestCounter();
+  handleInitialRoute();
 });
+
+function handleInitialRoute() {
+  const hash = (window.location.hash || '').replace(/^#/, '').toLowerCase();
+  const routeMap = {
+    profile: 'settings',
+    settings: 'settings',
+    deploy: 'deploy',
+    projects: 'projects',
+    console: 'console',
+    files: 'files',
+    backups: 'backups',
+    addons: 'addons'
+  };
+  const targetPage = routeMap[hash];
+  if (targetPage) navigateTo(targetPage);
+}
 
 function populateUserUI() {
   const u = currentUser;
@@ -294,15 +333,47 @@ function projectAction(id, action) {
 
 // ── DEPLOY ────────────────────────────────────────────────────────────────
 function setupDeployPage() {
-  // type picker
-  document.querySelectorAll('.type-btn').forEach(btn => {
+  const typePicker = document.getElementById('typePicker');
+  const backBtn = document.getElementById('typeBack');
+
+  function renderTypePicker() {
+    const choices = DEPLOY_CATEGORY_TYPES[selectedDeployCategory] || [];
+    typePicker.innerHTML = choices.map(type => {
+      const emoji = TYPE_EMOJIS[type] || '🧩';
+      const active = type === selectedDeployType ? ' active' : '';
+      return `<button class="type-btn${active}" data-type="${esc(type)}"><span class="qd-icon" aria-hidden="true">${emoji}</span>${esc(type)}</button>`;
+    }).join('');
+
+    document.querySelectorAll('.type-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedDeployType = btn.dataset.type;
+        document.getElementById('dpType').textContent = selectedDeployType;
+      });
+    });
+  }
+
+  document.querySelectorAll('.category-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      selectedDeployType = btn.dataset.type;
+      selectedDeployCategory = btn.dataset.category;
+      selectedDeployType = btn.dataset.defaultType;
       document.getElementById('dpType').textContent = selectedDeployType;
+      backBtn.style.display = 'inline-flex';
+      renderTypePicker();
     });
   });
+
+  backBtn?.addEventListener('click', () => {
+    backBtn.style.display = 'none';
+    document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+    const activeCategory = document.querySelector(`.category-btn[data-category="${selectedDeployCategory}"]`);
+    if (activeCategory) activeCategory.classList.add('active');
+  });
+
+  renderTypePicker();
 
   // method tabs
   document.querySelectorAll('.method-tab').forEach(tab => {
@@ -331,8 +402,9 @@ function setupDeployPage() {
 }
 
 function deployProject() {
-  const name = document.getElementById('deployName').value.trim();
-  if (!name) { showDeployLog('Please enter a project name.', 'warn'); return; }
+  const inputName = document.getElementById('deployName').value.trim();
+  const fallbackName = selectedDeployType.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + String(Date.now()).slice(-4);
+  const name = inputName || fallbackName;
 
   // plan is always free on Pillar
   const plan = 'free';
@@ -405,11 +477,41 @@ function deployProject() {
 
 function quickDeploy(type) {
   navigateTo('deploy');
-  document.querySelectorAll('.type-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.type === type);
-  });
-  selectedDeployType = type;
-  document.getElementById('dpType').textContent = type;
+  if (type === 'Web App') {
+    selectedDeployCategory = 'webapp';
+    selectedDeployType = 'Flask';
+  } else if (type === 'Discord Bot') {
+    selectedDeployCategory = 'discord';
+    selectedDeployType = 'Python';
+  } else {
+    selectedDeployType = type;
+  }
+
+  const categoryBtn = document.querySelector(`.category-btn[data-category="${selectedDeployCategory}"]`);
+  if (categoryBtn) {
+    document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+    categoryBtn.classList.add('active');
+  }
+
+  const typePicker = document.getElementById('typePicker');
+  if (typePicker) {
+    const choices = DEPLOY_CATEGORY_TYPES[selectedDeployCategory] || [];
+    typePicker.innerHTML = choices.map(item => {
+      const emoji = TYPE_EMOJIS[item] || '🧩';
+      const active = item === selectedDeployType ? ' active' : '';
+      return `<button class="type-btn${active}" data-type="${esc(item)}"><span class="qd-icon" aria-hidden="true">${emoji}</span>${esc(item)}</button>`;
+    }).join('');
+    document.querySelectorAll('.type-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedDeployType = btn.dataset.type;
+        document.getElementById('dpType').textContent = selectedDeployType;
+      });
+    });
+  }
+
+  document.getElementById('dpType').textContent = selectedDeployType;
 }
 
 function openProjectManager(projectId) {
@@ -762,13 +864,23 @@ function getDefaultFiles(type) {
     { name: 'README.md',   icon: 'FIL', size: '2.1 KB', modified: '2d ago',   type: 'file' },
   ];
   const typeFiles = {
+    'Express':      [{ name: 'node_modules', icon: 'DIR', size: '42 MB',  modified: '1d ago', type: 'dir' },
+                     { name: 'src',          icon: 'DIR', size: '—',      modified: '1h ago', type: 'dir' },
+                     { name: 'index.js',     icon: 'FIL', size: '3.2 KB', modified: '1h ago', type: 'file' },
+                     { name: 'package.json', icon: 'FIL', size: '1.1 KB', modified: '1h ago', type: 'file' }],
     'Express.js':   [{ name: 'node_modules', icon: 'DIR', size: '42 MB',  modified: '1d ago', type: 'dir' },
                      { name: 'src',          icon: 'DIR', size: '—',      modified: '1h ago', type: 'dir' },
                      { name: 'index.js',     icon: 'FIL', size: '3.2 KB', modified: '1h ago', type: 'file' },
                      { name: 'package.json', icon: 'FIL', size: '1.1 KB', modified: '1h ago', type: 'file' }],
+    'NodeJS':       [{ name: 'src',          icon: 'DIR', size: '—',      modified: '1h ago', type: 'dir' },
+                     { name: 'index.js',     icon: 'FIL', size: '2.1 KB', modified: '1h ago', type: 'file' },
+                     { name: 'package.json', icon: 'FIL', size: '1.0 KB', modified: '1h ago', type: 'file' }],
     'Node.js':      [{ name: 'src',          icon: 'DIR', size: '—',      modified: '1h ago', type: 'dir' },
                      { name: 'index.js',     icon: 'FIL', size: '2.1 KB', modified: '1h ago', type: 'file' },
                      { name: 'package.json', icon: 'FIL', size: '1.0 KB', modified: '1h ago', type: 'file' }],
+    'Python':       [{ name: 'bot.py',       icon: 'FIL', size: '2.3 KB', modified: '2h ago', type: 'file' },
+                     { name: 'cogs',         icon: 'DIR', size: '—',      modified: '2h ago', type: 'dir' },
+                     { name: 'requirements.txt', icon: 'FIL', size: '0.4 KB', modified: '2h ago', type: 'file' }],
     'FastAPI':      [{ name: 'main.py',       icon: 'FIL', size: '2.8 KB', modified: '2h ago', type: 'file' },
                      { name: 'requirements.txt', icon: 'FIL', size: '0.4 KB', modified: '2h ago', type: 'file' },
                      { name: '__pycache__',   icon: 'DIR', size: '—',      modified: '2h ago', type: 'dir' }],
@@ -778,6 +890,9 @@ function getDefaultFiles(type) {
     'Django':       [{ name: 'manage.py',     icon: 'FIL', size: '0.6 KB', modified: '1d ago', type: 'file' },
                      { name: 'myapp',         icon: 'DIR', size: '—',      modified: '1d ago', type: 'dir' },
                      { name: 'requirements.txt', icon: 'FIL', size: '0.5 KB', modified: '1d ago', type: 'file' }],
+    'Koa':          [{ name: 'src',           icon: 'DIR', size: '—',      modified: '1h ago', type: 'dir' },
+             { name: 'server.js',     icon: 'FIL', size: '2.2 KB', modified: '1h ago', type: 'file' },
+             { name: 'package.json',  icon: 'FIL', size: '0.9 KB', modified: '1h ago', type: 'file' }],
     'Discord Bot':  [{ name: 'bot.js',        icon: 'FIL', size: '4.1 KB', modified: '5h ago', type: 'file' },
                      { name: 'commands',      icon: 'DIR', size: '—',      modified: '5h ago', type: 'dir' },
                      { name: 'package.json',  icon: 'FIL', size: '0.9 KB', modified: '5h ago', type: 'file' }],
@@ -816,14 +931,14 @@ function deleteFile(name)   { if (confirm('Delete ' + name + '?')) { addActivity
 
 // ── ADDONS ────────────────────────────────────────────────────────────────
 const ADDONS_LIST = [
-  { id: 'mongo',   icon: 'DB', name: 'MongoDB',     desc: 'Managed MongoDB database for your projects.' },
-  { id: 'redis',   icon: 'RD', name: 'Redis',        desc: 'In-memory cache and message broker.' },
-  { id: 'postgres',icon: 'PG', name: 'PostgreSQL',   desc: 'Powerful open-source relational database.' },
-  { id: 'smtp',    icon: 'ML', name: 'SMTP Mail',    desc: 'Send transactional emails from your app.' },
-  { id: 'ssl',     icon: 'SSL', name: 'SSL Certificate', desc: "Free Let's Encrypt SSL for custom domains." },
-  { id: 'analytics',icon:'AN', name: 'Analytics',   desc: 'Real-time traffic and performance dashboard.' },
-  { id: 'cron',    icon: 'CR', name: 'Cron Jobs',    desc: 'Schedule tasks to run at specified intervals.' },
-  { id: 's3',      icon: 'S3', name: 'Object Storage', desc: 'S3-compatible file and asset storage.' },
+  { id: 'mongo',   icon: '🍃', name: 'MongoDB',     desc: 'Managed MongoDB database for your projects.' },
+  { id: 'redis',   icon: '🟥', name: 'Redis',       desc: 'In-memory cache and message broker.' },
+  { id: 'postgres',icon: '🐘', name: 'PostgreSQL',  desc: 'Powerful open-source relational database.' },
+  { id: 'smtp',    icon: '✉️', name: 'SMTP Mail',   desc: 'Send transactional emails from your app.' },
+  { id: 'ssl',     icon: '🔒', name: 'SSL Certificate', desc: "Free Let's Encrypt SSL for custom domains." },
+  { id: 'analytics',icon:'📊', name: 'Analytics',   desc: 'Real-time traffic and performance dashboard.' },
+  { id: 'cron',    icon: '⏱️', name: 'Cron Jobs',   desc: 'Schedule tasks to run at specified intervals.' },
+  { id: 's3',      icon: '🪣', name: 'Object Storage', desc: 'S3-compatible file and asset storage.' },
 ];
 
 function renderAddons() {
@@ -1052,41 +1167,22 @@ function animateNum(el, target) {
 
 function typeClass(type) {
   const map = {
-    'Express.js':'js',
-    'Node.js':'js',
-    'FastAPI':'fastapi',
-    'Flask':'flask',
-    'Django':'django',
-    'Discord Bot':'discord',
-    'Telegram Bot':'telegram',
-    'Bun':'fastapi',
-    'PHP':'flask',
-    'Ruby':'django',
-    'Go':'discord',
-    'Rust':'telegram',
-    'Java':'js',
-    '.NET':'fastapi',
-    'Custom Runtime':'flask'
+    'Web App':'emoji',
+    'Discord Bot':'emoji',
+    'Express':'emoji',
+    'Express.js':'emoji',
+    'FastAPI':'emoji',
+    'Flask':'emoji',
+    'Django':'emoji',
+    'Koa':'emoji',
+    'Python':'emoji',
+    'NodeJS':'emoji',
+    'Node.js':'emoji',
+    'Bun':'emoji',
+    'Java':'emoji'
   };
   return map[type] || 'default';
 }
 function typeLabel(type) {
-  const map = {
-    'Express.js':'<svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l8 4.5v9L12 22l-8-6.5v-9L12 2z" fill="currentColor" opacity=".18"/><path d="M12 2l8 4.5v9L12 22l-8-6.5v-9L12 2z" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/></svg>',
-    'FastAPI':'<svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L5 13h5l-1 9 10-13h-5l-1-7z" fill="currentColor"/></svg>',
-    'Flask':'<svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3h4v4l4.2 7.1A3.8 3.8 0 0 1 14.9 20H9.1a3.8 3.8 0 0 1-3.3-5.9L10 7V3z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 14h8" stroke="currentColor" stroke-width="1.6"/></svg>',
-    'Django':'<svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="9" y="9" width="10" height="10" rx="2" fill="currentColor" opacity=".22" stroke="currentColor" stroke-width="1.2"/></svg>',
-    'Discord Bot':'<svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7.5c2.8-2 7.2-2 10 0 1 2 1.5 4 1.5 6.2-2 1.8-4.1 2.8-6.5 3.1l-.8-1.5-.8 1.5c-2.4-.3-4.5-1.3-6.5-3.1 0-2.2.5-4.2 1.5-6.2z" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="9.5" cy="11.5" r="1" fill="currentColor"/><circle cx="14.5" cy="11.5" r="1" fill="currentColor"/></svg>',
-    'Telegram Bot':'<svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L20 4l-4.8 16-4.4-5-3.1 3.1v-4.8L3 11.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M20 4L7.7 13.3" stroke="currentColor" stroke-width="1.4"/></svg>',
-    'Node.js':'<svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l8 4.5v9L12 22l-8-6.5v-9L12 2z" fill="currentColor" opacity=".18"/><path d="M12 2l8 4.5v9L12 22l-8-6.5v-9L12 2z" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/></svg>',
-    'Bun':'<svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="9.3" cy="11" r="1" fill="currentColor"/><circle cx="14.7" cy="11" r="1" fill="currentColor"/><path d="M9 15c1 .8 2 .9 3 .9s2-.1 3-.9" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>',
-    'PHP':'<svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="8" ry="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 10h1.5M11.5 10H13M15 10h1" stroke="currentColor" stroke-width="1.4"/></svg>',
-    'Ruby':'<svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l6 5-2 8-8 5-3-8 3-6z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 3l1.8 5L9 13l-4-0.2" stroke="currentColor" stroke-width="1.2"/></svg>',
-    'Go':'<svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h9M4 9h7M4 15h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="15.5" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="15.5" cy="12" r="1" fill="currentColor"/></svg>',
-    'Rust':'<svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 5v2M12 17v2M5 12h2M17 12h2" stroke="currentColor" stroke-width="1.4"/></svg>',
-    'Java':'<svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 18h8" stroke="currentColor" stroke-width="1.6"/><path d="M9 10h6v6a3 3 0 0 1-6 0v-6z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 4c0 1.2 1.2 1.6 1.2 2.8S12 8.3 12 9" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg>',
-    '.NET':'<svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 12h8" stroke="currentColor" stroke-width="1.6"/><path d="M12 8v8" stroke="currentColor" stroke-width="1.6"/></svg>',
-    'Custom Runtime':'<svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8l6-5v4l-3 2 3 2v4l-6-5V8zm16 0l-6-5v4l3 2-3 2v4l6-5V8z" fill="currentColor"/></svg>'
-  };
-  return map[type] || '<svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 12h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+  return TYPE_EMOJIS[type] || '🧩';
 }
